@@ -68,23 +68,26 @@ class PacketSizeAnalyzer:
         with self.lock:
             if not self.packet_size_list:
                 return ["无数据可显示"], ""
-            # 计算包大小的分布
-            bins = 20  # 增加分组数以加宽图表
+            # 定义固定区间（每 200 字节一个区间）
+            max_size = max(self.packet_size_list, default=1500)
+            bin_width = 200
+            bins = range(0, int(max_size) + bin_width, bin_width)
             hist, bin_edges = np.histogram(self.packet_size_list, bins=bins, density=True)
-            hist = hist / hist.max() * 10  # 归一化到高度 10
+            hist = hist / max(hist.max(), 1) * 10  # 归一化到高度 10
             hist = hist.tolist()
 
-            # 生成横轴标签（包大小区间）
+            # 生成横轴标签
             axis_labels = [f"{int(bin_edges[i])}-{int(bin_edges[i+1])}" for i in range(len(bin_edges)-1)]
-            axis_line = " " * 4 + "".join(f"{label:<6}" for label in axis_labels[:10])  # 限制标签数量以适应终端
+            # 每 6 个字符一个标签，确保对齐
+            axis_line = " " * 4 + "".join(f"{label[:6]:<6}" for label in axis_labels[:10])
 
             # 使用 asciichartpy 绘制图表
             config = {
                 'height': 10,
-                'width': 60,  # 增加宽度以拉宽图表
+                'width': 70,  # 增加宽度以更清晰显示
                 'format': '{:8.2f}'
             }
-            chart = asciichartpy.plot(hist, config)
+            chart = asciichartpy.plot(hist[:10], config)  # 限制柱数以匹配标签
             return chart.split('\n'), axis_line
 
     def start_ui(self):
@@ -92,7 +95,7 @@ class PacketSizeAnalyzer:
 
     def _update_ui(self, stdscr):
         stdscr.nodelay(True)
-        show_histogram = False  # 控制是否显示柱状图
+        show_histogram = False
         while self.running:
             stdscr.clear()
             utc8 = timezone(timedelta(hours=8))
@@ -103,7 +106,6 @@ class PacketSizeAnalyzer:
             stdscr.addstr(3, 0, "-" * 50)
 
             if not show_histogram:
-                # 显示分类统计
                 stdscr.addstr(4, 0, "分类                     | 数量   | 百分比")
                 stdscr.addstr(5, 0, "-" * 50)
                 with self.lock:
@@ -116,7 +118,6 @@ class PacketSizeAnalyzer:
                         display_category = f"{category} ({'<' if category == 'Small' else '>'}{self.size_threshold} 字节)"
                         stdscr.addstr(i, 0, f"{display_category:<24} | {count:<6} | {percentage:.2f}%")
 
-                    # 显示大小分布
                     stdscr.addstr(9, 0, "大小分布 (字节)         | 数量   | 百分比")
                     stdscr.addstr(10, 0, "-" * 50)
                     sorted_ranges = sorted(self.size_distribution.keys(),
@@ -126,20 +127,17 @@ class PacketSizeAnalyzer:
                         percentage = (count / total) * 100
                         stdscr.addstr(i, 0, f"{size_range:<24} | {count:<6} | {percentage:.2f}%")
 
-                    # 显示最后 5 个数据包
                     stdscr.addstr(17, 0, "最后 5 个数据包 (大小, 时间)")
                     stdscr.addstr(18, 0, "-" * 50)
                     for i, (size, timestamp) in enumerate(self.last_packets, start=19):
                         stdscr.addstr(i, 0, f"大小: {size} 字节, 时间: {timestamp}")
             else:
-                # 显示 ASCII 柱状图和横轴
                 chart_lines, axis_line = self.get_ascii_histogram()
                 stdscr.addstr(4, 0, "包大小分布 (字节)")
                 for i, line in enumerate(chart_lines, start=5):
                     stdscr.addstr(i, 0, line)
-                stdscr.addstr(16, 0, axis_line)  # 显示横轴标签
+                stdscr.addstr(16, 0, axis_line)
 
-            # 显示操作提示
             stdscr.addstr(25, 0, "按 'q' 退出, 'a' 增加阈值, 'b' 减少阈值, 'h' 切换柱状图")
             stdscr.refresh()
             time.sleep(1)
