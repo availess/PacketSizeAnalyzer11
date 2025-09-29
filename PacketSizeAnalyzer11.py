@@ -79,9 +79,10 @@ class PacketSizeAnalyzer:
             stdscr.addstr(4, 0, "-" * 50)
             with self.lock:
                 total = self.total_packets if self.total_packets > 0 else 1  # Avoid division by zero
+                total_sl = self.packet_sizes["Small"] + self.packet_sizes["Large"]
                 for i, category in enumerate(["Small", "Large"], start=5):
                     count = self.packet_sizes[category]
-                    percentage = (count / total) * 100
+                    percentage = (count / total_sl) * 100
                     display_category = f"{category} ({'<' if category == 'Small' else '>'}{self.size_threshold} bytes)"
                     stdscr.addstr(i, 0, f"{display_category:<24} | {count:<6} | {percentage:.2f}%")
 
