@@ -4,7 +4,7 @@ import curses
 from collections import defaultdict, deque
 from scapy.all import sniff, IP
 from datetime import datetime, timezone, timedelta
-import json
+
 
 class PacketSizeAnalyzer:
     def __init__(self, interface='mirror-eth0', size_threshold=500):
@@ -16,7 +16,6 @@ class PacketSizeAnalyzer:
         self.running = True
         self.lock = threading.Lock()
         self.last_packets = deque(maxlen=5)  # Store last 5 packets (size, timestamp)
-        self.last_chart_time = time.time()  # Track last chart generation time
 
         # Define size ranges for distribution (in bytes)
         self.size_ranges = [
@@ -47,6 +46,7 @@ class PacketSizeAnalyzer:
 
     def capture_packets(self):
         """Capture packets and analyze their sizes"""
+
         def process_packet(packet):
             category, range_key, packet_info = self.categorize_packet(packet)
             if category and range_key and packet_info:
@@ -54,69 +54,9 @@ class PacketSizeAnalyzer:
                     self.packet_sizes[category] += 1
                     self.size_distribution[range_key] += 1
                     self.last_packets.append(packet_info)
+
         while self.running:
             sniff(iface=self.interface, prn=process_packet, store=False, filter="ip", count=100)
-
-    def generate_chart(self):
-        """Generate Chart.js configuration for packet size distribution"""
-        with self.lock:
-            sorted_ranges = sorted(self.size_distribution.keys(),
-                                 key=lambda x: int(x.split('-')[0]))
-            labels = [size_range for size_range in sorted_ranges]
-            data = [self.size_distribution[size_range] for size_range in sorted_ranges]
-
-        chart_config = {
-            "type": "bar",
-            "data": {
-                "labels": labels,
-                "datasets": [{
-                    "label": "Packet Size Distribution",
-                    "data": data,
-                    "backgroundColor": [
-                        "rgba(75, 192, 192, 0.6)",  # Cyan
-                        "rgba(255, 99, 132, 0.6)",  # Red
-                        "rgba(255, 159, 64, 0.6)",  # Orange
-                        "rgba(54, 162, 235, 0.6)",  # Blue
-                        "rgba(153, 102, 255, 0.6)"  # Purple
-                    ],
-                    "borderColor": [
-                        "rgba(75, 192, 192, 1)",
-                        "rgba(255, 99, 132, 1)",
-                        "rgba(255, 159, 64, 1)",
-                        "rgba(54, 162, 235, 1)",
-                        "rgba(153, 102, 255, 1)"
-                    ],
-                    "borderWidth": 1
-                }]
-            },
-            "options": {
-                "scales": {
-                    "x": {
-                        "title": {
-                            "display": True,
-                            "text": "Packet Size Range (bytes)"
-                        }
-                    },
-                    "y": {
-                        "title": {
-                            "display": True,
-                            "text": "Packet Count"
-                        },
-                        "beginAtZero": True
-                    }
-                },
-                "plugins": {
-                    "title": {
-                        "display": True,
-                        "text": "Packet Size Distribution Histogram"
-                    },
-                    "legend": {
-                        "display": False
-                    }
-                }
-            }
-        }
-        return chart_config
 
     def start_ui(self):
         """Start the interactive UI"""
@@ -151,7 +91,7 @@ class PacketSizeAnalyzer:
                 stdscr.addstr(8, 0, "Size Distribution (bytes) | Count  | Percentage")
                 stdscr.addstr(9, 0, "-" * 50)
                 sorted_ranges = sorted(self.size_distribution.keys(),
-                                      key=lambda x: int(x.split('-')[0]))
+                                       key=lambda x: int(x.split('-')[0]))
                 for i, size_range in enumerate(sorted_ranges, start=10):
                     count = self.size_distribution[size_range]
                     percentage = (count / total) * 100
@@ -162,13 +102,6 @@ class PacketSizeAnalyzer:
                 stdscr.addstr(17, 0, "-" * 50)
                 for i, (size, timestamp) in enumerate(self.last_packets, start=18):
                     stdscr.addstr(i, 0, f"Size: {size} bytes, Time: {timestamp}")
-
-                # Generate and log chart configuration every 10 seconds
-                current_time = time.time()
-                if current_time - self.last_chart_time >= 10:
-                    chart_config = self.generate_chart()
-                    print(json.dumps(chart_config, indent=2))  # Print to console
-                    self.last_chart_time = current_time
 
             # Display exit and threshold adjustment prompt
             stdscr.addstr(24, 0, "Press 'q' to exit, 'a' to increase threshold, 'b' to decrease threshold")
@@ -189,14 +122,15 @@ class PacketSizeAnalyzer:
                         self.packet_sizes["Large"] = 0
                 elif key == 'b':
                     with self.lock:
-                        self.size_threshold = max(100, self.size_threshold - 100)  # Decrease threshold, minimum 100 bytes
+                        self.size_threshold = max(100,
+                                                  self.size_threshold - 100)  # Decrease threshold, minimum 100 bytes
                         # Reset category counts
                         self.packet_sizes.clear()
                         self.packet_sizes["Small"] = 0
                         self.packet_sizes["Large"] = 0
-
             except curses.error:
                 pass
+
 
 if __name__ == "__main__":
     analyzer = PacketSizeAnalyzer()
