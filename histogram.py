@@ -67,14 +67,25 @@ class PacketSizeAnalyzer:
     def get_ascii_histogram(self):
         with self.lock:
             if not self.packet_size_list:
-                return "无数据可显示"
+                return ["无数据可显示"], ""
             # 计算包大小的分布
-            bins = 10  # 设置柱状图的分组数
+            bins = 20  # 增加分组数以加宽图表
             hist, bin_edges = np.histogram(self.packet_size_list, bins=bins, density=True)
-            hist = hist / hist.max() * 10  # 归一化到高度 10 以适配 ASCII 图
+            hist = hist / hist.max() * 10  # 归一化到高度 10
             hist = hist.tolist()
-            # 使用 asciichartpy 绘制
-            return asciichartpy.plot(hist, {'height': 10, 'format': '{:8.2f}'})
+
+            # 生成横轴标签（包大小区间）
+            axis_labels = [f"{int(bin_edges[i])}-{int(bin_edges[i+1])}" for i in range(len(bin_edges)-1)]
+            axis_line = " " * 4 + "".join(f"{label:<6}" for label in axis_labels[:10])  # 限制标签数量以适应终端
+
+            # 使用 asciichartpy 绘制图表
+            config = {
+                'height': 10,
+                'width': 60,  # 增加宽度以拉宽图表
+                'format': '{:8.2f}'
+            }
+            chart = asciichartpy.plot(hist, config)
+            return chart.split('\n'), axis_line
 
     def start_ui(self):
         curses.wrapper(self._update_ui)
@@ -121,10 +132,12 @@ class PacketSizeAnalyzer:
                     for i, (size, timestamp) in enumerate(self.last_packets, start=19):
                         stdscr.addstr(i, 0, f"大小: {size} 字节, 时间: {timestamp}")
             else:
-                # 显示 ASCII 柱状图
-                histogram = self.get_ascii_histogram()
-                for i, line in enumerate(histogram.split('\n'), start=4):
+                # 显示 ASCII 柱状图和横轴
+                chart_lines, axis_line = self.get_ascii_histogram()
+                stdscr.addstr(4, 0, "包大小分布 (字节)")
+                for i, line in enumerate(chart_lines, start=5):
                     stdscr.addstr(i, 0, line)
+                stdscr.addstr(16, 0, axis_line)  # 显示横轴标签
 
             # 显示操作提示
             stdscr.addstr(25, 0, "按 'q' 退出, 'a' 增加阈值, 'b' 减少阈值, 'h' 切换柱状图")
@@ -148,7 +161,7 @@ class PacketSizeAnalyzer:
                         self.packet_sizes["Small"] = 0
                         self.packet_sizes["Large"] = 0
                 elif key == 'h':
-                    show_histogram = not show_histogram  # 切换柱状图显示
+                    show_histogram = not show_histogram
             except curses.error:
                 pass
 
