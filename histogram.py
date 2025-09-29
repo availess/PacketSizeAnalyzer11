@@ -77,9 +77,8 @@ class PacketSizeAnalyzer:
             hist = hist.tolist()
 
             # 生成横轴标签
-            axis_labels = [f"{int(bin_edges[i])}" for i in range(len(bin_edges)-1)]
-            # 每 6 个字符一个标签，确保对齐
-            axis_line = " " * 4 + "".join(f"{label[:6]:<6}" for label in axis_labels[:10])
+            axis_labels = [f"{int(bin_edges[i]) / 100}" for i in range(len(bin_edges)-1)]
+            axis_line = " " * 4 + " ".join(f"{label[:2]}" for label in axis_labels[:10]) + " 包大小(百字节）"
 
             # 使用 asciichartpy 绘制图表
             config = {
