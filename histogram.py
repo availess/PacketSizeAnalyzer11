@@ -84,7 +84,7 @@ class PacketSizeAnalyzer:
             # 生成横轴标签（以百字节为单位）
             axis_labels = [str(i // 100) for i in bin_edges[:-1]]  # 0, 2, 4, 6...
             # 每 4 个字符一个标签，确保对齐
-            axis_line = " " * 4 + "0" + "".join(f"     {2 * i}"[-4:] for i in range(10))
+            axis_line = " " * 4 + "0" + "".join(f"     {2 * i}"[-4:] for i in range(1, 10))
 
             # 使用 asciichartpy 绘制图表
             config = {
