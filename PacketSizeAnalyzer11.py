@@ -80,6 +80,7 @@ class PacketSizeAnalyzer:
             with self.lock:
                 total = self.total_packets if self.total_packets > 0 else 1  # Avoid division by zero
                 total_sl = self.packet_sizes["Small"] + self.packet_sizes["Large"]
+                total_sl = total_sl if total_sl > 0 else 1
                 for i, category in enumerate(["Small", "Large"], start=5):
                     count = self.packet_sizes[category]
                     percentage = (count / total_sl) * 100
