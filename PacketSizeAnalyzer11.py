@@ -3,6 +3,7 @@ import time
 import curses
 from collections import defaultdict, deque
 from scapy.all import sniff, IP
+from datetime import datetime, timezone, timedelta
 
 
 class PacketSizeAnalyzer:
@@ -29,7 +30,9 @@ class PacketSizeAnalyzer:
         """Categorize packet based on its size"""
         if IP in packet:
             packet_size = len(packet)
-            timestamp = time.strftime("%H:%M:%S")
+            # Use UTC+8 for timestamp
+            utc8 = timezone(timedelta(hours=8))
+            timestamp = datetime.now(utc8).strftime("%H:%M:%S")
             self.total_packets += 1
             is_large = packet_size > self.size_threshold
             category = "Large" if is_large else "Small"
@@ -64,8 +67,9 @@ class PacketSizeAnalyzer:
         stdscr.nodelay(True)  # Non-blocking input
         while self.running:
             stdscr.clear()
-            # Display title and current time
-            current_time = time.strftime("%Y-%m-%d %H:%M:%S")
+            # Display title and current time in UTC+8
+            utc8 = timezone(timedelta(hours=8))
+            current_time = datetime.now(utc8).strftime("%Y-%m-%d %H:%M:%S %Z")
             stdscr.addstr(0, 0, f"Packet Size Analysis - Current Time: {current_time}")
             stdscr.addstr(1, 0, f"Size Threshold: {self.size_threshold} bytes")
             stdscr.addstr(2, 0, "-" * 50)
@@ -98,7 +102,7 @@ class PacketSizeAnalyzer:
                     stdscr.addstr(i, 0, f"Size: {size} bytes, Time: {timestamp}")
 
             # Display exit and threshold adjustment prompt
-            stdscr.addstr(24, 0, "Press 'q' to exit, '+' to increase threshold, '-' to decrease threshold")
+            stdscr.addstr(24, 0, "Press 'q' to exit, 'a' to increase threshold, 'b' to decrease threshold")
             stdscr.refresh()
             time.sleep(1)  # Update every second
 
@@ -107,23 +111,21 @@ class PacketSizeAnalyzer:
                 key = stdscr.getkey()
                 if key == 'q':
                     self.running = False
-                elif key == '+':
+                elif key == 'a':
                     with self.lock:
                         self.size_threshold += 100  # Increase threshold by 100 bytes
-                        # Recalculate categories for existing packets
-                        old_sizes = self.packet_sizes.copy()
+                        # Reset category counts
                         self.packet_sizes.clear()
-                        self.packet_sizes["Small"] = old_sizes["Small"]
-                        self.packet_sizes["Large"] = old_sizes["Large"]
-                elif key == '-':
+                        self.packet_sizes["Small"] = 0
+                        self.packet_sizes["Large"] = 0
+                elif key == 'b':
                     with self.lock:
                         self.size_threshold = max(100,
                                                   self.size_threshold - 100)  # Decrease threshold, minimum 100 bytes
-                        # Recalculate categories for existing packets
-                        old_sizes = self.packet_sizes.copy()
+                        # Reset category counts
                         self.packet_sizes.clear()
-                        self.packet_sizes["Small"] = old_sizes["Small"]
-                        self.packet_sizes["Large"] = old_sizes["Large"]
+                        self.packet_sizes["Small"] = 0
+                        self.packet_sizes["Large"] = 0
             except curses.error:
                 pass
 
