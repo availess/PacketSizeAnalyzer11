@@ -194,6 +194,7 @@ class PacketSizeAnalyzer:
                         self.packet_sizes.clear()
                         self.packet_sizes["Small"] = 0
                         self.packet_sizes["Large"] = 0
+
             except curses.error:
                 pass
 
