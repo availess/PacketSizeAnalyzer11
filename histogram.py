@@ -68,25 +68,31 @@ class PacketSizeAnalyzer:
         with self.lock:
             if not self.packet_size_list:
                 return ["无数据可显示"], ""
-            # 定义固定区间（每 200 字节一个区间）
+            # 定义固定 50 字节区间
             max_size = max(self.packet_size_list, default=1500)
-            bin_width = 200
+            bin_width = 50
             bins = range(0, int(max_size) + bin_width, bin_width)
-            hist, bin_edges = np.histogram(self.packet_size_list, bins=bins, density=True)
-            hist = hist / max(hist.max(), 1) * 10  # 归一化到高度 10
-            hist = hist.tolist()
+            hist, bin_edges = np.histogram(self.packet_size_list, bins=bins)
+            # 转换为百分比
+            total = max(sum(hist), 1)  # 避免除零
+            hist = (hist / total * 100).tolist()  # 百分比
+            # 缩放到最大 1.3%（如示例）
+            max_height = 1.3
+            if hist:
+                hist = [h / max(max(hist), 1) * max_height for h in hist]
 
-            # 生成横轴标签
-            axis_labels = [f"{int(bin_edges[i]) / 100}" for i in range(len(bin_edges)-1)]
-            axis_line = " " * 4 + " ".join(f"{label[:2]}" for label in axis_labels[:10]) + " 包大小(百字节）"
+            # 生成横轴标签（以百字节为单位）
+            axis_labels = [str(i // 100) for i in bin_edges[:-1]]  # 0, 2, 4, 6...
+            # 每 4 个字符一个标签，确保对齐
+            axis_line = " " * 4 + "".join(f"{label:<4}" for label in axis_labels[:14])
 
             # 使用 asciichartpy 绘制图表
             config = {
                 'height': 10,
-                'width': 70,  # 增加宽度以更清晰显示
-                'format': '{:8.2f}'
+                'width': 70,  # 宽图表
+                'format': '{:4.1f}'  # Y 轴显示百分比
             }
-            chart = asciichartpy.plot(hist[:10], config)  # 限制柱数以匹配标签
+            chart = asciichartpy.plot(hist[:14], config)  # 限制柱数以匹配标签
             return chart.split('\n'), axis_line
 
     def start_ui(self):
@@ -132,10 +138,11 @@ class PacketSizeAnalyzer:
                         stdscr.addstr(i, 0, f"大小: {size} 字节, 时间: {timestamp}")
             else:
                 chart_lines, axis_line = self.get_ascii_histogram()
-                stdscr.addstr(4, 0, "包大小分布 (字节)")
+                stdscr.addstr(4, 0, "包大小分布 (%)")
                 for i, line in enumerate(chart_lines, start=5):
                     stdscr.addstr(i, 0, line)
                 stdscr.addstr(16, 0, axis_line)
+                stdscr.addstr(17, 0, " " * 4 + "包大小 (百字节)")
 
             stdscr.addstr(25, 0, "按 'q' 退出, 'a' 增加阈值, 'b' 减少阈值, 'h' 切换柱状图")
             stdscr.refresh()
