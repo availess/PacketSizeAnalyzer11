@@ -4,10 +4,12 @@ import curses
 from collections import defaultdict, deque
 from scapy.all import sniff, IP
 from datetime import datetime, timezone, timedelta
+import json
+import os
 
 
 class PacketSizeAnalyzer:
-    def __init__(self, interface='mirror-eth0', size_threshold=500):
+    def __init__(self, interface='mirror-eth0', size_threshold=500, save_interval=60):
         self.interface = interface
         self.size_threshold = size_threshold  # Threshold in bytes to distinguish large vs small packets
         self.packet_sizes = defaultdict(int)  # Tracks count of packets by size category
@@ -16,14 +18,17 @@ class PacketSizeAnalyzer:
         self.running = True
         self.lock = threading.Lock()
         self.last_packets = deque(maxlen=5)  # Store last 5 packets (size, timestamp)
+        self.save_interval = save_interval  # Interval to save data to file
+        self.save_filename = "packet_data.json"
 
         # Define size ranges for distribution (in bytes)
         self.size_ranges = [
             (0, 100), (101, 500), (501, 1000), (1001, 1500), (1501, float('inf'))
         ]
 
-        # Start packet capture thread and UI
+        # Start packet capture thread, UI, and periodic save thread
         threading.Thread(target=self.capture_packets, daemon=True).start()
+        threading.Thread(target=self.periodic_save, daemon=True).start()
         self.start_ui()
 
     def categorize_packet(self, packet):
@@ -46,7 +51,6 @@ class PacketSizeAnalyzer:
 
     def capture_packets(self):
         """Capture packets and analyze their sizes"""
-
         def process_packet(packet):
             category, range_key, packet_info = self.categorize_packet(packet)
             if category and range_key and packet_info:
@@ -130,6 +134,24 @@ class PacketSizeAnalyzer:
                         self.packet_sizes["Large"] = 0
             except curses.error:
                 pass
+
+    def save_data(self):
+        """Save data to a JSON file"""
+        data = {
+            "packet_sizes": dict(self.packet_sizes),
+            "size_distribution": dict(self.size_distribution),
+            "last_packets": list(self.last_packets),
+            "total_packets": self.total_packets
+        }
+        with open(self.save_filename, 'w') as file:
+            json.dump(data, file, indent=4)
+        print(f"Data saved to {self.save_filename}")
+
+    def periodic_save(self):
+        """Periodically save data to a file"""
+        while self.running:
+            time.sleep(self.save_interval)
+            self.save_data()
 
 
 if __name__ == "__main__":
